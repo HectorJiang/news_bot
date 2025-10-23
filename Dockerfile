@@ -7,9 +7,6 @@ RUN apt-get update && apt-get install -y \
     git cmake g++ wget zlib1g-dev openssl libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 go-tdlib
-RUN go install github.com/zelenin/go-tdlib/cmd/tdjson@latest
-
 # 拷贝代码
 COPY . .
 
