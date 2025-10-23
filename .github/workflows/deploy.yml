@@ -22,7 +22,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_SSH_PASSWORD }}
           port: 22
-          source: "./"               # 仓库根目录
+          source: "./*"               # 仓库根目录
           target: "/opt/news_bot"    # 服务器目标目录
 
       # 3️⃣ 在服务器上编译

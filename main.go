@@ -8,6 +8,11 @@ import (
 )
 
 func main() {
+	// 设置日志级别为 0，禁用 TDLib 调试日志
+	client.SetLogVerbosityLevel(&client.SetLogVerbosityLevelRequest{
+		NewVerbosityLevel: 0,
+	})
+
 	// 初始化 TDLib 授权器
 	authorizer := client.ClientAuthorizer(&client.SetTdlibParametersRequest{
 		UseTestDc:           false,
