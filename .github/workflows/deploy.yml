@@ -39,6 +39,3 @@ jobs:
             # 下载依赖并编译
             go mod tidy
             go build -o news_bot main.go
-
-            # 给二进制加执行权限
-            chmod +x news_bot
