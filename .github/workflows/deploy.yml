@@ -1,0 +1,62 @@
+name: Build & Deploy news_bot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ 拉取仓库代码
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2️⃣ 设置 Go 环境
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.22
+
+      # 3️⃣ 构建 Docker 镜像
+      - name: Build Docker image
+        run: docker build -t news_bot:${{ github.sha }} .
+
+      # 4️⃣ 登录 Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 5️⃣ 推送镜像到 Docker Hub
+      - name: Push Docker image
+        run: |
+          docker tag news_bot:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/news_bot:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/news_bot:${{ github.sha }}
+
+      # 6️⃣ 部署到服务器（SSH + 密码）
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_SSH_PASSWORD }}
+          script: |
+            # 创建项目目录
+            mkdir -p /opt/news_bot
+
+            # 停止旧容器
+            docker stop news_bot || true
+            docker rm news_bot || true
+
+            # 拉取最新镜像
+            docker pull ${{ secrets.DOCKER_USERNAME }}/news_bot:${{ github.sha }}
+
+            # 运行容器
+            docker run -d \
+              --name news_bot \
+              -v /opt/news_bot:/app/tdlib-db \
+              ${{ secrets.DOCKER_USERNAME }}/news_bot:${{ github.sha }}
