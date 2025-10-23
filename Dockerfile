@@ -2,9 +2,9 @@ FROM golang:1.22
 
 WORKDIR /app
 
-# 安装依赖
+# 安装依赖（注意加 gperf）
 RUN apt-get update && apt-get install -y \
-    git cmake g++ wget zlib1g-dev openssl libssl-dev \
+    git cmake g++ wget zlib1g-dev openssl libssl-dev gperf \
     && rm -rf /var/lib/apt/lists/*
 
 # 下载并编译 TDLib
@@ -17,13 +17,14 @@ RUN git clone https://github.com/tdlib/td.git /td && \
 ENV CGO_CFLAGS="-I/usr/local/include"
 ENV CGO_LDFLAGS="-L/usr/local/lib -ltdjson"
 
-# 拷贝代码
+# 拷贝项目代码
 COPY . .
 
-# 下载依赖
+# 下载 Go 依赖
 RUN go mod tidy
 
 # 构建 Go 可执行文件
 RUN go build -o news_bot main.go
 
+# 容器启动命令
 CMD ["./news_bot"]
