@@ -6,55 +6,54 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  # 1️⃣ 编译 Go 程序
+  build:
     runs-on: ubuntu-latest
     container:
-      image: hectorjiang/go-tdlib:latest  # 你的预构建 TDLib 镜像
-
+      image: hectorjiang/go-tdlib:latest  # 已经包含 TDLib
     steps:
-      # 1️⃣ 拉取仓库代码
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # 2️⃣ 下载 Go 依赖
+      - uses: actions/checkout@v3
       - name: Download Go dependencies
         run: go mod tidy
-
-      # 3️⃣ 构建可执行文件
       - name: Build news_bot
         run: go build -o news_bot main.go
-
-      # 4️⃣ 登录 Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          name: news_bot-binary
+          path: news_bot
 
-      # 5️⃣ 构建并推送 Docker 镜像
-      - name: Build & Push Docker image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/news_bot:${{ github.sha }} .
-          docker push ${{ secrets.DOCKER_USERNAME }}/news_bot:${{ github.sha }}
+  # 2️⃣ 部署到宿主机
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download binary
+        uses: actions/download-artifact@v3
+        with:
+          name: news_bot-binary
 
-      # 6️⃣ 部署到服务器 via SSH (用密码)
-      - name: Deploy to Server
+      - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_SSH_PASSWORD }}
           script: |
+            # 创建 TDLib 数据目录
+            mkdir -p /opt/news_bot
+
             # 停止旧容器
             docker stop news_bot || true
             docker rm news_bot || true
 
-            # 拉取最新镜像
-            docker pull ${{ secrets.DOCKER_USERNAME }}/news_bot:${{ github.sha }}
+            # 将二进制放到宿主机临时目录
+            cp $GITHUB_WORKSPACE/news_bot /opt/news_bot/news_bot
 
-            # 运行容器
+            # 运行容器，挂载数据目录和二进制
             docker run -d \
               --name news_bot \
-              --restart=always \
               -v /opt/news_bot:/app/tdlib-db \
-              ${{ secrets.DOCKER_USERNAME }}/news_bot:${{ github.sha }}
+              -v /opt/news_bot/news_bot:/app/news_bot \
+              hectorjiang/go-tdlib:latest \
+              /app/news_bot
