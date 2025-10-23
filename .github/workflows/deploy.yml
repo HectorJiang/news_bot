@@ -12,13 +12,20 @@ jobs:
     container:
       image: hectorjiang/go-tdlib:latest  # 已经包含 TDLib
     steps:
+      # 拉取仓库代码
       - uses: actions/checkout@v3
+
+      # 下载 Go 依赖
       - name: Download Go dependencies
         run: go mod tidy
+
+      # 编译二进制
       - name: Build news_bot
         run: go build -o news_bot main.go
+
+      # 上传二进制供下一个 job 使用
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: news_bot-binary
           path: news_bot
@@ -28,11 +35,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      # 下载 build 阶段生成的二进制
       - name: Download binary
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: news_bot-binary
 
+      # SSH 到服务器，停止旧容器并启动新容器
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v0.1.8
         with:
@@ -43,11 +52,11 @@ jobs:
             # 创建 TDLib 数据目录
             mkdir -p /opt/news_bot
 
-            # 停止旧容器
+            # 停止并删除旧容器
             docker stop news_bot || true
             docker rm news_bot || true
 
-            # 将二进制放到宿主机临时目录
+            # 将二进制拷贝到宿主机指定目录
             cp $GITHUB_WORKSPACE/news_bot /opt/news_bot/news_bot
 
             # 运行容器，挂载数据目录和二进制
