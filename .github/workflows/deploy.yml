@@ -10,21 +10,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: hectorjiang/go-tdlib:latest  # 已经包含 TDLib
+      image: hectorjiang/go-tdlib:latest  # 包含 TDLib
     steps:
-      # 拉取仓库代码
       - uses: actions/checkout@v3
 
-      # 下载 Go 依赖
       - name: Download Go dependencies
         run: go mod tidy
 
-      # 编译二进制
       - name: Build news_bot
         run: go build -o news_bot main.go
 
-      # 上传二进制供下一个 job 使用
-      - name: Upload binary
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: news_bot-binary
@@ -35,34 +31,44 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      # 下载 build 阶段生成的二进制
+      # 下载 build job 的二进制
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
           name: news_bot-binary
 
-      # SSH 到服务器，停止旧容器并启动新容器
-      - name: Deploy to Server via SSH
+      # 上传二进制到宿主机
+      - name: Upload binary to server
+        uses: appleboy/scp-action@v0.1.6
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_SSH_PASSWORD }}
+          source: "news_bot"
+          target: "/opt/news_bot/news_bot"
+
+      # SSH 到宿主机，停止旧容器并启动新容器
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_SSH_PASSWORD }}
           script: |
-            # 创建 TDLib 数据目录
+            # 确保 TDLib 数据目录存在
             mkdir -p /opt/news_bot
+
+            # 给二进制加执行权限
+            chmod +x /opt/news_bot/news_bot
 
             # 停止并删除旧容器
             docker stop news_bot || true
             docker rm news_bot || true
 
-            # 将二进制拷贝到宿主机指定目录
-            cp $GITHUB_WORKSPACE/news_bot /opt/news_bot/news_bot
-
-            # 运行容器，挂载数据目录和二进制
+            # 运行容器
             docker run -d \
               --name news_bot \
               -v /opt/news_bot:/app/tdlib-db \
-              -v /opt/news_bot/news_bot:/app/news_bot \
+              -v /opt/news_bot/news_bot:/app/news_bot-binary \
               hectorjiang/go-tdlib:latest \
-              /app/news_bot
+              /app/news_bot-binary
